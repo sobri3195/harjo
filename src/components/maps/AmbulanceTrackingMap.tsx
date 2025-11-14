@@ -1,0 +1,352 @@
+import React, { useEffect, useRef, useState } from 'react';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Truck, MapPin, Clock, Activity, Settings } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface AmbulanceData {
+  id: string;
+  callSign: string;
+  latitude: number;
+  longitude: number;
+  status: 'available' | 'dispatched' | 'en_route' | 'busy';
+  speed?: number;
+  heading?: number;
+  lastUpdate: string;
+}
+
+interface AmbulanceTrackingMapProps {
+  height?: string;
+  showControls?: boolean;
+}
+
+const AmbulanceTrackingMap: React.FC<AmbulanceTrackingMapProps> = ({
+  height = "400px",
+  showControls = true
+}) => {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string>('');
+  const [showTokenInput, setShowTokenInput] = useState(true);
+  const [ambulances, setAmbulances] = useState<AmbulanceData[]>([]);
+  const [selectedAmbulance, setSelectedAmbulance] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  // Sample ambulance data untuk demo
+  const sampleAmbulances: AmbulanceData[] = [
+    {
+      id: 'amb-001',
+      callSign: 'AMB-001',
+      latitude: -6.2088,
+      longitude: 106.8456,
+      status: 'available',
+      speed: 0,
+      heading: 45,
+      lastUpdate: new Date().toISOString()
+    },
+    {
+      id: 'amb-002', 
+      callSign: 'AMB-002',
+      latitude: -6.2188,
+      longitude: 106.8356,
+      status: 'dispatched',
+      speed: 45,
+      heading: 120,
+      lastUpdate: new Date().toISOString()
+    },
+    {
+      id: 'amb-003',
+      callSign: 'AMB-003',
+      latitude: -6.1988,
+      longitude: 106.8556,
+      status: 'en_route',
+      speed: 60,
+      heading: 270,
+      lastUpdate: new Date().toISOString()
+    }
+  ];
+
+  const initializeMap = (token: string) => {
+    if (!mapContainer.current) return;
+
+    mapboxgl.accessToken = token;
+    
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [106.8456, -6.2088], // Jakarta
+        zoom: 12,
+        pitch: 0,
+        bearing: 0
+      });
+
+      // Add navigation controls
+      map.current.addControl(
+        new mapboxgl.NavigationControl({
+          visualizePitch: true,
+        }),
+        'top-right'
+      );
+
+      // Add scale control
+      map.current.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
+
+      map.current.on('load', () => {
+        addAmbulanceMarkers();
+        toast({
+          title: "Peta Berhasil Dimuat",
+          description: "Sistem tracking ambulans aktif",
+        });
+      });
+
+      map.current.on('error', (e) => {
+        console.error('Mapbox error:', e);
+        toast({
+          title: "Error Peta",
+          description: "Periksa token Mapbox Anda",
+          variant: "destructive"
+        });
+      });
+
+    } catch (error) {
+      console.error('Failed to initialize map:', error);
+      toast({
+        title: "Gagal Memuat Peta",
+        description: "Token Mapbox tidak valid",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const addAmbulanceMarkers = () => {
+    if (!map.current) return;
+
+    // Add markers for each ambulance
+    sampleAmbulances.forEach((ambulance) => {
+      const statusColor = {
+        'available': '#10b981',
+        'dispatched': '#f59e0b', 
+        'en_route': '#ef4444',
+        'busy': '#6b7280'
+      }[ambulance.status];
+
+      // Create custom marker element
+      const markerElement = document.createElement('div');
+      markerElement.className = 'ambulance-marker';
+      markerElement.style.cssText = `
+        width: 30px;
+        height: 30px;
+        background: ${statusColor};
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `;
+      
+      markerElement.innerHTML = `
+        <svg width="16" height="16" fill="white" viewBox="0 0 24 24">
+          <path d="M4 16h1v4c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4h6v4c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4h1c.55 0 1-.45 1-1V9c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v2H5c-1.1 0-2 .9-2 2v6c0 .55.45 1 1 1z"/>
+        </svg>
+      `;
+
+      // Create popup content
+      const popupContent = `
+        <div style="min-width: 200px; padding: 10px;">
+          <div style="font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+            <span>🚑</span>
+            <span>${ambulance.callSign}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>Status:</span>
+              <span style="background: ${statusColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                ${ambulance.status}
+              </span>
+            </div>
+            ${ambulance.speed ? `
+              <div style="display: flex; justify-content: space-between;">
+                <span>Kecepatan:</span>
+                <span>${ambulance.speed} km/h</span>
+              </div>
+            ` : ''}
+            ${ambulance.heading ? `
+              <div style="display: flex; justify-content: space-between;">
+                <span>Arah:</span>
+                <span>${ambulance.heading}°</span>
+              </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; color: #666; font-size: 12px;">
+              <span>Update:</span>
+              <span>${new Date(ambulance.lastUpdate).toLocaleTimeString()}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const popup = new mapboxgl.Popup({
+        offset: 25,
+        closeButton: true,
+        closeOnClick: false
+      }).setHTML(popupContent);
+
+      // Add marker to map
+      new mapboxgl.Marker(markerElement)
+        .setLngLat([ambulance.longitude, ambulance.latitude])
+        .setPopup(popup)
+        .addTo(map.current!);
+
+      // Add click handler
+      markerElement.addEventListener('click', () => {
+        setSelectedAmbulance(ambulance.id);
+      });
+    });
+
+    setAmbulances(sampleAmbulances);
+  };
+
+  const handleTokenSubmit = () => {
+    if (!mapboxToken.trim()) {
+      toast({
+        title: "Token Diperlukan",
+        description: "Masukkan token Mapbox Anda",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    initializeMap(mapboxToken);
+    setShowTokenInput(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (map.current) {
+        map.current.remove();
+      }
+    };
+  }, []);
+
+  if (showTokenInput) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 bg-gray-50 rounded-lg border-2 border-dashed">
+        <div className="text-center space-y-4 p-6 max-w-md">
+          <MapPin className="h-12 w-12 text-gray-400 mx-auto" />
+          <h3 className="text-lg font-semibold text-gray-700">Konfigurasi Peta</h3>
+          <p className="text-sm text-gray-600">
+            Masukkan token Mapbox Anda untuk mengaktifkan peta tracking ambulans.
+            Dapatkan token di{' '}
+            <a 
+              href="https://mapbox.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              mapbox.com
+            </a>
+          </p>
+          <div className="space-y-3">
+            <Input
+              type="text"
+              placeholder="pk.eyJ1IjoieW91ci11c2VybmFtZSIsImEiOiJ..."
+              value={mapboxToken}
+              onChange={(e) => setMapboxToken(e.target.value)}
+              className="w-full"
+            />
+            <Button onClick={handleTokenSubmit} className="w-full">
+              <Settings className="w-4 h-4 mr-2" />
+              Aktifkan Peta
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {/* Map Container */}
+      <div 
+        ref={mapContainer} 
+        style={{ height }}
+        className="w-full rounded-lg shadow-lg"
+      />
+
+      {/* Status Overlay */}
+      <div className="absolute top-4 right-4 z-10">
+        <Badge variant="default" className="bg-green-600">
+          <Activity className="w-3 h-3 mr-1" />
+          Live Tracking
+        </Badge>
+      </div>
+
+      {/* Ambulance Control Panel */}
+      {showControls && (
+        <Card className="absolute top-4 left-4 z-10 w-80 max-h-96 overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Truck className="w-4 h-4" />
+              Unit Ambulans ({ambulances.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 max-h-64 overflow-y-auto">
+            {ambulances.map((ambulance) => {
+              const minutesAgo = Math.floor(
+                (Date.now() - new Date(ambulance.lastUpdate).getTime()) / 60000
+              );
+              
+              return (
+                <div 
+                  key={ambulance.id}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedAmbulance === ambulance.id 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                  onClick={() => {
+                    setSelectedAmbulance(ambulance.id);
+                    if (map.current) {
+                      map.current.flyTo({
+                        center: [ambulance.longitude, ambulance.latitude],
+                        zoom: 15,
+                        duration: 1000
+                      });
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{ambulance.callSign}</div>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Clock className="w-3 h-3" />
+                        {minutesAgo}m yang lalu
+                        {ambulance.speed && ambulance.speed > 0 && (
+                          <span>• {ambulance.speed} km/h</span>
+                        )}
+                      </div>
+                    </div>
+                    <Badge 
+                      variant={ambulance.status === 'available' ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {ambulance.status}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default AmbulanceTrackingMap;
