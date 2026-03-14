@@ -11,6 +11,21 @@ interface GeolocationState {
   permissionState: 'granted' | 'denied' | 'prompt' | 'checking' | null;
 }
 
+type PermissionResult = 'granted' | 'denied' | 'prompt';
+
+const isNativeRuntime = () => {
+  const capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return Boolean(capacitor?.isNativePlatform?.());
+};
+
+const normalizePermission = (value?: string): PermissionResult => {
+  if (value === 'granted' || value === 'denied') {
+    return value;
+  }
+
+  return 'prompt';
+};
+
 // This implementation will use native Capacitor APIs when building for mobile
 export const useCapacitorGeolocation = () => {
   const [location, setLocation] = useState<GeolocationState>({
@@ -25,7 +40,17 @@ export const useCapacitorGeolocation = () => {
   // For now, this is just a placeholder that falls back to web APIs
   
   const checkPermission = async () => {
-    // This will use Capacitor.Geolocation.checkPermissions() in mobile build
+    if (isNativeRuntime()) {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const permission = await Geolocation.checkPermissions();
+
+        return normalizePermission(permission.location ?? permission.coarseLocation);
+      } catch {
+        // fallback ke web API bila plugin belum tersedia
+      }
+    }
+
     if (!navigator.permissions) {
       return 'prompt';
     }
@@ -38,7 +63,17 @@ export const useCapacitorGeolocation = () => {
   };
 
   const requestPermission = async () => {
-    // This will use Capacitor.Geolocation.requestPermissions() in mobile build
+    if (isNativeRuntime()) {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const permission = await Geolocation.requestPermissions();
+
+        return normalizePermission(permission.location ?? permission.coarseLocation);
+      } catch {
+        // fallback ke web API bila plugin belum tersedia
+      }
+    }
+
     return new Promise<'granted' | 'denied' | 'prompt'>((resolve) => {
       navigator.geolocation.getCurrentPosition(
         () => resolve('granted'),
@@ -82,14 +117,30 @@ export const useCapacitorGeolocation = () => {
         }
       }
 
-      // This will use Capacitor.Geolocation.getCurrentPosition() in mobile build
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 300000,
-        });
-      });
+      const position = isNativeRuntime()
+        ? await (async () => {
+            const { Geolocation } = await import('@capacitor/geolocation');
+
+            const nativePosition = await Geolocation.getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 15000,
+              maximumAge: 300000,
+            });
+
+            return {
+              coords: {
+                latitude: nativePosition.coords.latitude,
+                longitude: nativePosition.coords.longitude,
+              },
+            };
+          })()
+        : await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 15000,
+              maximumAge: 300000,
+            });
+          });
 
       setLocation({
         latitude: position.coords.latitude,
@@ -113,7 +164,7 @@ export const useCapacitorGeolocation = () => {
         ...prev,
         error: errorMessage,
         loading: false,
-        permissionState: 'denied',
+        permissionState: error?.code === 1 ? 'denied' : 'prompt',
       }));
     }
   };
