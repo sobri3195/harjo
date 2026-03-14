@@ -193,6 +193,41 @@ const Index = () => {
                 Sistem darurat RSPAU dr. Suhardi Harjolukito. Gunakan tombol di bawah untuk melaporkan kasus darurat.
               </p>
             </div>
+
+            <div className="mx-4 md:mx-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Card className="border-red-100 bg-red-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs text-red-700">Laporan Pending</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-red-800">{realtimeStats.pendingReports}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-amber-100 bg-amber-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs text-amber-700">Sedang Ditangani</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-amber-800">{realtimeStats.activeReports}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-purple-100 bg-purple-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs text-purple-700">Kasus Kritis</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-purple-800">{realtimeStats.criticalReports}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-green-100 bg-green-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs text-green-700">Ambulans Aktif</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-green-800">{realtimeStats.activeAmbulances}</p>
+                </CardContent>
+              </Card>
+            </div>
             
             {/* Mobile Notification Panel */}
             <div className="mx-4 md:mx-6">

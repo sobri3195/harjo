@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import AmbulanceHeader from '@/components/ambulance/AmbulanceHeader';
 import AmbulanceEmergencyButtons from '@/components/ambulance/AmbulanceEmergencyButtons';
 import AmbulanceBottomNavigation from '@/components/ambulance/AmbulanceBottomNavigation';
@@ -19,7 +19,6 @@ import { useEmergencyAuth } from '@/hooks/useEmergencyAuth';
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { MapPin, Navigation, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
 import MobileNotificationPanel from '@/components/MobileNotificationPanel';
 
 const AmbulancePage = () => {
@@ -32,7 +31,6 @@ const AmbulancePage = () => {
 
   const [activeTab, setActiveTab] = useState(() => getInitialTab());
   const [showGPSDialog, setShowGPSDialog] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
   const { personnel } = usePersonnel();
   const { reports } = useEmergencyReports();
@@ -111,6 +109,12 @@ const AmbulancePage = () => {
 
   // Filter for active calls (not completed)
   const activeCalls = reports.filter(report => report.status === 'pending');
+
+  const ambulanceMetrics = useMemo(() => ({
+    pending: reports.filter((report) => report.status === 'pending').length,
+    inProgress: reports.filter((report) => report.status === 'dalam_penanganan').length,
+    critical: reports.filter((report) => report.severity === 'berat' && report.status !== 'selesai').length,
+  }), [reports]);
 
   // Auto light mode (white theme)
   useEffect(() => {
@@ -236,6 +240,21 @@ const AmbulancePage = () => {
               <p className="text-gray-600 text-sm">
                 Sistem ambulans RSPAU dr. Suhardi Harjolukito dengan panduan Google Maps real-time. Siap melayani panggilan darurat 24/7.
               </p>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white/70 rounded-lg p-3 border border-white/60">
+                  <p className="text-xs text-gray-500">Pending Darurat</p>
+                  <p className="text-lg font-semibold text-red-700">{ambulanceMetrics.pending}</p>
+                </div>
+                <div className="bg-white/70 rounded-lg p-3 border border-white/60">
+                  <p className="text-xs text-gray-500">Dalam Penanganan</p>
+                  <p className="text-lg font-semibold text-amber-700">{ambulanceMetrics.inProgress}</p>
+                </div>
+                <div className="bg-white/70 rounded-lg p-3 border border-white/60">
+                  <p className="text-xs text-gray-500">Kasus Kritis</p>
+                  <p className="text-lg font-semibold text-purple-700">{ambulanceMetrics.critical}</p>
+                </div>
+              </div>
+
               <div className="mt-3 flex items-center space-x-2">
                 <div className={`w-3 h-3 rounded-full ${
                   isSharing && permissionState === 'granted' 
