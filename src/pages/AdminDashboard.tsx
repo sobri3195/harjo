@@ -1,7 +1,6 @@
 
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Users, UserPlus, Truck, AlertTriangle, Settings, LogOut, Menu, Phone, Activity, Wrench } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BarChart3, Users, UserPlus, Truck, AlertTriangle, Settings, Menu, Activity, Wrench, Clock3, HeartPulse, Siren } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EnhancedAdminStats from '@/components/admin/EnhancedAdminStats';
 import EnhancedEmergencyReports from '@/components/admin/EnhancedEmergencyReports';
@@ -16,10 +15,54 @@ import EmergencyCallsAdmin from '@/components/admin/EmergencyCallsAdmin';
 import { useEmergencyReports } from '@/hooks/useEmergencyReports';
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const getInitialTab = () => {
+    const hash = window.location.hash.slice(1);
+    const validTabs = ['dashboard', 'maps', 'ambulance-status', 'drivers', 'equipment', 'reports', 'personnel', 'medical-team', 'settings'];
+    return validTabs.includes(hash) ? hash : 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState(() => getInitialTab());
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const navigate = useNavigate();
   const { reports } = useEmergencyReports();
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      const validTabs = ['dashboard', 'maps', 'ambulance-status', 'drivers', 'equipment', 'reports', 'personnel', 'medical-team', 'settings'];
+      if (validTabs.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    if (!window.location.hash) {
+      window.location.hash = activeTab;
+    }
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeTab]);
+
+  const setTabWithHash = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = tab;
+  };
+
+  const reportMetrics = useMemo(() => {
+    const pending = reports.filter((report) => report.status === 'pending').length;
+    const inProgress = reports.filter((report) => report.status === 'dalam_penanganan').length;
+    const critical = reports.filter((report) => report.severity === 'berat' && report.status !== 'selesai').length;
+
+    return {
+      pending,
+      inProgress,
+      critical,
+      resolvedToday: reports.filter((report) => {
+        const isResolved = report.status === 'selesai';
+        const resolvedDate = new Date(report.updated_at).toDateString();
+        return isResolved && resolvedDate === new Date().toDateString();
+      }).length,
+    };
+  }, [reports]);
 
   const menuItems = [
     { id: 'dashboard', icon: BarChart3, label: 'Dashboard', color: 'text-blue-600' },
@@ -49,6 +92,40 @@ const AdminDashboard = () => {
             {/* Quick Stats */}
             <EnhancedAdminStats />
 
+            <div className="mx-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-red-700 font-medium">Pending Calls</p>
+                  <Siren size={18} className="text-red-600" />
+                </div>
+                <p className="text-2xl font-bold text-red-800 mt-2">{reportMetrics.pending}</p>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-amber-700 font-medium">Sedang Ditangani</p>
+                  <Clock3 size={18} className="text-amber-600" />
+                </div>
+                <p className="text-2xl font-bold text-amber-800 mt-2">{reportMetrics.inProgress}</p>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-purple-700 font-medium">Kasus Kritis</p>
+                  <HeartPulse size={18} className="text-purple-600" />
+                </div>
+                <p className="text-2xl font-bold text-purple-800 mt-2">{reportMetrics.critical}</p>
+              </div>
+
+              <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-green-700 font-medium">Selesai Hari Ini</p>
+                  <Activity size={18} className="text-green-600" />
+                </div>
+                <p className="text-2xl font-bold text-green-800 mt-2">{reportMetrics.resolvedToday}</p>
+              </div>
+            </div>
+
             {/* Emergency Reports Summary */}
             <div className="mx-6 bg-white border border-gray-100 rounded-xl shadow-sm p-4">
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
@@ -77,7 +154,7 @@ const AdminDashboard = () => {
                 ))}
               </div>
               <Button
-                onClick={() => setActiveTab('reports')}
+                onClick={() => setTabWithHash('reports')}
                 variant="outline"
                 className="w-full mt-3"
               >
@@ -88,7 +165,7 @@ const AdminDashboard = () => {
             {/* Quick Actions */}
             <div className="mx-6 grid grid-cols-2 gap-4">
               <button
-                onClick={() => setActiveTab('maps')}
+                onClick={() => setTabWithHash('maps')}
                 className="bg-white border border-gray-200 hover:border-gray-300 text-gray-900 rounded-xl p-4 text-left transition-colors shadow-sm"
               >
                 <div className="text-lg mb-1">🗺️</div>
@@ -96,7 +173,7 @@ const AdminDashboard = () => {
                 <div className="text-xs text-gray-500">Monitoring</div>
               </button>
               <button
-                onClick={() => setActiveTab('reports')}
+                onClick={() => setTabWithHash('reports')}
                 className="bg-white border border-gray-200 hover:border-gray-300 text-gray-900 rounded-xl p-4 text-left transition-colors shadow-sm"
               >
                 <div className="text-lg mb-1">📋</div>
@@ -152,7 +229,7 @@ const AdminDashboard = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => setTabWithHash(item.id)}
                 className={`w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
                   activeTab === item.id ? 'bg-blue-50 border-r-2 border-blue-600' : ''
                 }`}
